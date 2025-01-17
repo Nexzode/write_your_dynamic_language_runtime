@@ -39,45 +39,78 @@ public final class ASTInterpreter {
     return switch (expression) {
       case Block(List<Expr> instrs, int lineNumber) -> {
 				//throw new UnsupportedOperationException("TODO Block");
-        // TODO loop over all instructions
+        instrs.forEach(element -> visit(element, env));
         yield UNDEFINED;
       }
       case Literal<?>(Object value, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO Literal");
+        yield value;
       }
       case FunCall(Expr qualifier, List<Expr> args, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO FunCall");
+        var value = visit(qualifier, env);
+        if(!(value instanceof JSObject jsObject)){
+          throw new Failure("qualifiere not a JsonObject: line " + lineNumber);
+        }
+        var values = args.stream().map(e -> visit(e, env)).toArray();
+        yield jsObject.invoke(UNDEFINED, values);
       }
       case LocalVarAccess(String name, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO LocalVarAccess");
+        yield env.lookup(name);
       }
       case LocalVarAssignment(String name, Expr expr, boolean declaration, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO LocalVarAssignment");
+        var value = visit(expr, env);
+
+        if(declaration && env.lookup(name) != UNDEFINED){
+          throw new Failure(name + " was already declared: line " + lineNumber);
+        }
+        env.register(name, value);
+        yield value;
       }
       case Fun(Optional<String> optName, List<String> parameters, Block body, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO Fun");
-        //var functionName = optName.orElse("lambda");
-        //Invoker invoker = new Invoker() {
-        //  @Override
-        //  public Object invoke(JSObject self, Object receiver, Object... args) {
+        var functionName = optName.orElse("lambda");
+        JSObject.Invoker invoker = new JSObject.Invoker() {
+        @Override
+        public Object invoke(Object receiver, Object... args) {
         //    // check the arguments length
+          if(args.length != parameters.size() ){
+            throw new Failure("Wrong number of arguments");
+          }
         //    // create a new environment
+          var jsonObject = JSObject.newEnv(env);
         //    // add this and all the parameters
+          jsonObject.register("this", receiver);
+          for(var i = 0; i < args.length; i++){
+            jsonObject.register(parameters.get(i), args[i]);
+          }
         //    // visit the body
-        //  }
-        //};
+          try {
+            return visit(body, jsonObject);
+          }catch (ReturnError e){
+            return e.getValue();
+          }
+        }
+        };
         // create the JS function with the invoker
+        var function = env.newFunction(functionName, invoker);
         // register it if necessary
+        optName.ifPresent( name -> env.register(name, function));
         // yield the function
+        yield function;
       }
       case Return(Expr expr, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO Return");
+        var value = visit(expr, env);
+        throw new ReturnError(value);
       }
       case If(Expr condition, Block trueBlock, Block falseBlock, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO If");
+        var value = visit(condition, env);
+        if(value instanceof Integer integer && integer == 0){
+          visit(falseBlock, env);
+        }
+        visit(trueBlock, env);
+        yield UNDEFINED;
       }
       case New(Map<String, Expr> initMap, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO New");
+        initMap.forEach(env::register);
+        yield UNDEFINED;//Fun();
       }
       case FieldAccess(Expr receiver, String name, int lineNumber) -> {
         throw new UnsupportedOperationException("TODO FieldAccess");

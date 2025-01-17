@@ -25,11 +25,11 @@ public class ASTInterpreterTests {
     return outStream.toString(UTF_8).replace("\r\n", "\n");
   }
 
-  /*
   @Tag("Q2") @Test
   public void helloString() {
     assertEquals("", execute("\"hello\"\n"));
   }
+
 
   @Tag("Q3") @Test
   public void integer3() {
@@ -97,6 +97,7 @@ public class ASTInterpreterTests {
   public void printAVariableDefinedAfter() {
     assertEquals("undefined\n", execute("print(a);\nvar a = 2;\n"));
   }
+
   @Tag("Q9") @Test
   public void defineAVariableTwice() {
     assertThrows(Failure.class, () -> execute("var a = 3\nvar a = 2;\n"));
@@ -232,7 +233,7 @@ public class ASTInterpreterTests {
             print(f(7));
             """));
   }
-  
+
   @Tag("Q12") @Test
   public void callFibo() {
     assertEquals("21\n", execute("""
@@ -282,7 +283,6 @@ public class ASTInterpreterTests {
             print(f());
             """));
   }
-  
   @Tag("Q13") @Test
   public void createAnObject() {
     assertEquals("""
@@ -300,7 +300,7 @@ public class ASTInterpreterTests {
                 print(o);
                 """));
   }
-  
+  /*
   @Tag("Q14") @Test
   public void createAnObjectFromAVariableValue() {
     assertEquals("""

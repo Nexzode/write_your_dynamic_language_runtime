@@ -157,28 +157,26 @@ public final class InstrRewriter {
 				}
 			}
 			case Literal<?>(Object literalValue, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO Literal");
 				// test if the literal value is a positive integers
-				//if (literalValue instanceof Integer value && value >= 0) {
+				if (literalValue instanceof Integer value && value >= 0) {
 				// emit a small int
-				//buffer.emit(...).emit(...);
-				//} else {
+				buffer.emit(CONST).emit(value);
+				} else {
 				// emit a dictionary object
-				//buffer.emit(...).emit(...);
-				//}
+				buffer.emit(CONST).emit(dict.index(literalValue));
+				}
 			}
 			case FunCall(Expr qualifier, List<Expr> args, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO FunCall");
 				// visit the qualifier
-				//visit(...);
+				visit(qualifier, env, buffer, dict);
 				// emit undefined
-				//buffer.emit(...).emit(...)
+				buffer.emit(CONST).emit((Integer) UNDEFINED);
 				// visit all arguments
-				//for (var arg : args) {
-				//	visit(...);
-				//}
+				for (var arg : args) {
+					visit(arg, env, buffer, dict);
+				}
 				// emit the funcall
-				//buffer.emit(...).emit(...);
+				buffer.emit(FUNCALL).emit(dict.index(qualifier));
 			}
 			case LocalVarAccess(String name, int lineNumber) -> {
 				throw new UnsupportedOperationException("TODO LocalVarAccess");
