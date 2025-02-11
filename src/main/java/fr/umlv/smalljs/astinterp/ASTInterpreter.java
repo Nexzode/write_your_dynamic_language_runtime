@@ -1,5 +1,6 @@
 package fr.umlv.smalljs.astinterp;
 
+import com.sun.source.tree.YieldTree;
 import fr.umlv.smalljs.ast.Expr;
 import fr.umlv.smalljs.ast.Expr.Block;
 import fr.umlv.smalljs.ast.Expr.FieldAccess;
@@ -18,13 +19,12 @@ import fr.umlv.smalljs.rt.Failure;
 import fr.umlv.smalljs.rt.JSObject;
 
 import java.io.PrintStream;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.Year;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static fr.umlv.smalljs.rt.JSObject.UNDEFINED;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
 
 public final class ASTInterpreter {
@@ -104,22 +104,53 @@ public final class ASTInterpreter {
         var value = visit(condition, env);
         if(value instanceof Integer integer && integer == 0){
           visit(falseBlock, env);
+        }else {
+          visit(trueBlock, env);
         }
-        visit(trueBlock, env);
         yield UNDEFINED;
       }
       case New(Map<String, Expr> initMap, int lineNumber) -> {
-        initMap.forEach(env::register);
-        yield UNDEFINED;//Fun();
+        JSObject jsObject = JSObject.newObject(null);
+        if(initMap.isEmpty()){
+          yield Map.of();
+        }
+        initMap.forEach((key, value) -> jsObject.register(key, visit(value, env)));
+        yield jsObject;
       }
       case FieldAccess(Expr receiver, String name, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO FieldAccess");
+        var value = visit(receiver, env);
+        if(value instanceof JSObject jsObject){
+          env.register(name, value);
+          yield jsObject.lookup(name);
+        }else {
+          yield UNDEFINED;
+        }
       }
       case FieldAssignment(Expr receiver, String name, Expr expr, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO FieldAssignment");
+        var value = visit(receiver, env);
+        var sender = visit(expr, env);
+
+        if (value instanceof JSObject jsObject) {
+          jsObject.register(name, sender);
+        }
+        yield UNDEFINED;
       }
       case MethodCall(Expr receiver, String name, List<Expr> args, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO MethodCall");
+        var value = visit(receiver, env);
+
+        if (!(value instanceof JSObject jsObject)) {
+          yield UNDEFINED;
+        }
+
+        var method = jsObject.lookup(name);
+
+        if (!(method instanceof JSObject function)) {
+          yield UNDEFINED;
+        }
+
+        Object[] evaluatedArgs = args.stream().map(arg -> visit(arg, env)).toArray();
+
+        yield function.invoke(jsObject, evaluatedArgs);
       }
     };
   }
