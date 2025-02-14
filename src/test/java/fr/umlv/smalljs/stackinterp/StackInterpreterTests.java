@@ -41,7 +41,7 @@ public class StackInterpreterTests {
     assertEquals("foobar\n", execute("print('foobar')\n"));
     assertEquals("3\n", execute("print(3)\n"));
   }
-/*
+
   @Tag("Q5") @Test
   public void printPrint() {
     assertFalse(execute("print(print)\n").isEmpty());
@@ -290,7 +290,7 @@ public class StackInterpreterTests {
             print(f());
             """));
   }
-  
+  /*
 
   @Tag("Q13") @Test
   public void createAnObject() {
