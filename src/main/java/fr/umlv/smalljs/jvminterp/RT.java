@@ -1,11 +1,6 @@
 package fr.umlv.smalljs.jvminterp;
 
 import static fr.umlv.smalljs.rt.JSObject.UNDEFINED;
-import static java.lang.invoke.MethodHandles.dropArguments;
-import static java.lang.invoke.MethodHandles.foldArguments;
-import static java.lang.invoke.MethodHandles.guardWithTest;
-import static java.lang.invoke.MethodHandles.insertArguments;
-import static java.lang.invoke.MethodHandles.invoker;
 import static java.lang.invoke.MethodType.methodType;
 
 import java.lang.invoke.CallSite;
@@ -16,10 +11,8 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 
-import fr.umlv.smalljs.rt.ArrayMap;
-import fr.umlv.smalljs.rt.ArrayMap.Layout;
-import fr.umlv.smalljs.rt.Failure;
 import fr.umlv.smalljs.rt.JSObject;
+
 
 public final class RT {
   private static final MethodHandle LOOKUP, REGISTER, INVOKE, TRUTH, METH_LOOKUP_MH;
@@ -48,36 +41,85 @@ public final class RT {
   }
 
   public static CallSite bsm_lookup(Lookup lookup, String name, MethodType type, String functionName) {
-    throw new UnsupportedOperationException("TODO bsm_lookup");
-    //var classLoader = (FunClassLoader) lookup.lookupClass().getClassLoader();
-    //var globalEnv = classLoader.getGlobal();
+    var classLoader = (FunClassLoader) lookup.lookupClass().getClassLoader();
+    var globalEnv = classLoader.getGlobal();
     // get the LOOKUP method handle
+    var mh = LOOKUP;
     // use the global environment as first argument and the functionName as second argument
+    mh = MethodHandles.insertArguments(mh, 0, globalEnv, functionName);
     // create a constant callsite
+    return new ConstantCallSite(mh);
   }
 
   public static CallSite bsm_funcall(Lookup lookup, String name, MethodType type) {
-    throw new UnsupportedOperationException("TODO bsm_funcall");
-    // get INVOKE method handle
-    // make it accept an Object (not a JSObject) and objects as other parameters
-    // create a constant callsite
+    return new InliningCache(type);
+  }
+
+  private static class InliningCache extends MutableCallSite {
+    private static final MethodHandle SLOW_PATH;
+    private static final MethodHandle TEST;
+
+    static {
+      var lookup = MethodHandles.lookup();
+      try {
+        SLOW_PATH = lookup.findVirtual(InliningCache.class, "slowPath", methodType(MethodHandle.class, Object.class, Object.class));
+        TEST = lookup.findStatic(InliningCache.class, "test", methodType(boolean.class, Object.class, Object.class));
+      } catch (NoSuchMethodException | IllegalAccessException e) {
+        throw new AssertionError(e);
+      }
+    }
+
+    public InliningCache(MethodType type) {
+      super(type);
+      setTarget(MethodHandles.foldArguments(MethodHandles.exactInvoker(type), SLOW_PATH.bindTo(this)));
+    }
+
+    private static boolean test(Object receiver, Object previousQualifier){
+      return receiver == previousQualifier;
+    }
+
+    private MethodHandle slowPath(Object qualifier, Object receiver) {
+      var jsObject = (JSObject)qualifier;
+      var mh = jsObject.getMethodHandle();
+      var varargs = mh.isVarargsCollector();
+
+      System.err.println("arguments " + (type().parameterCount() - 2));
+      System.err.println("parameters " + (mh.type().parameterCount() - 1));
+
+      mh = MethodHandles.dropArguments(mh, 0, Object.class);
+      mh = mh.withVarargs(varargs);
+      mh = mh.asType(type());
+
+      System.err.println("resolved " + jsObject);
+
+//      var test = MethodHandles.insertArguments(TEST, 1, qualifier);
+//      var guard = MethodHandles.guardWithTest(test, mh, getTarget());
+
+      var test = MethodHandles.insertArguments(TEST, 1, qualifier);
+      var fallback = new InliningCache(type()).dynamicInvoker();
+      var guard = MethodHandles.guardWithTest(test, mh, fallback);
+
+      setTarget(guard);
+      return mh;
+    }
   }
 
   public static Object bsm_fun(Lookup lookup, String name, Class<?> type, int funId) {
-    throw new UnsupportedOperationException("TODO bsm_fun");
-    //var classLoader = (FunClassLoader) lookup.lookupClass().getClassLoader();
-    //var globalEnv = classLoader.getGlobal();
-    //var fun = classLoader.getDictionary().lookupAndClear(funId);
-    //return ByteCodeRewriter.createFunction(fun.optName().orElse("lambda"), fun.parameters(), fun.body(), globalEnv);
+    var classLoader = (FunClassLoader) lookup.lookupClass().getClassLoader();
+    var globalEnv = classLoader.getGlobal();
+    var fun = classLoader.getDictionary().lookupAndClear(funId);
+    return ByteCodeRewriter.createFunction(fun.optName().orElse("lambda"), fun.parameters(), fun.body(), globalEnv);
   }
 
   public static CallSite bsm_register(Lookup lookup, String name, MethodType type, String functionName) {
-    throw new UnsupportedOperationException("TODO bsm_register");
-    //var classLoader = (FunClassLoader) lookup.lookupClass().getClassLoader();
-    //var globalEnv = classLoader.getGlobal();
+    var classLoader = (FunClassLoader) lookup.lookupClass().getClassLoader();
+    var globalEnv = classLoader.getGlobal();
     //get the REGISTER method handle
+    var mh = REGISTER;
     // use the global environment as first argument and the functionName as second argument
+    mh = MethodHandles.insertArguments(mh, 0, globalEnv, functionName);
     // create a constant callsite
+    return new ConstantCallSite(mh);
   }
 
   @SuppressWarnings("unused")  // used by a method handle
@@ -85,9 +127,10 @@ public final class RT {
     return o != null && o != UNDEFINED && o != Boolean.FALSE;
   }
   public static CallSite bsm_truth(Lookup lookup, String name, MethodType type) {
-    throw new UnsupportedOperationException("TODO bsm_truth");
     // get the TRUTH method handle
+    var mh = TRUTH;
     // create a constant callsite
+    return  new ConstantCallSite(mh);
   }
 
   public static CallSite bsm_get(Lookup lookup, String name, MethodType type, String fieldName) {
